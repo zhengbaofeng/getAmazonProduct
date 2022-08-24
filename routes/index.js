@@ -128,10 +128,11 @@ router.get('/creation-js-api', async function(req, res, next) {
       if (!item) return
       item = JSON.parse(item)
       if (item && item[1] && item[1].indexOf('data-main-slot:') >= 0) {
-        //  if (count > 0) return
+        if (count > 5) return
         count++
         let $ = cheerio.load(item[2].html)
         let pUrl = 'https://www.amazon.in' + $('.a-link-normal').attr('href')
+        console.log($('.a-link-normal').attr('href'))
         body = request('POST', pUrl, {
           headers: {
             "content-type": "application/json",
@@ -142,9 +143,8 @@ router.get('/creation-js-api', async function(req, res, next) {
         });
         body = body.getBody('utf8')
         console.log('商品html======================================' + index)
-        console.log(pUrl)
         $ = cheerio.load(body)
-        const mainProduct = {}
+        let mainProduct = {}
         mainProduct['Vendor'] = 'pawsmall'
         mainProduct['Published'] = 'TRUE'
         mainProduct['Gift Card'] = 'FALSE'
@@ -173,7 +173,6 @@ router.get('/creation-js-api', async function(req, res, next) {
         //  尺寸选择
         const sizeElm = $('#native_dropdown_selected_size_name')
         if (sizeElm && sizeElm.find('option').length) {
-          console.log('尺寸配置')
           let sizeFirst = true
           const subProductList = []
           //  有尺寸选择
@@ -181,13 +180,10 @@ router.get('/creation-js-api', async function(req, res, next) {
             const value = (sizeElm.find('option')[i].attribs['value']).split(',')
             if (parseInt(value[0]) !== -1 && value[1]) {
               let urlLsit = pUrl.split('/')
-              console.log(parseInt(value[0]), value[1])
               if (urlLsit[5] && urlLsit[5].length === 10) {
-                console.log(sizeElm.find('option')[i].attribs['data-a-html-content'])
+                console.log(parseInt(value[0]), value[1], sizeElm.find('option')[i].attribs['data-a-html-content'])
                 urlLsit.splice(5, 1, value[1])
                 urlLsit = urlLsit.join('/')
-                console.log('尺寸产品地址')
-                console.log(urlLsit)
                 let productSizeBody = request('POST', urlLsit, {
                   headers: {
                     "content-type": "application/json",
@@ -199,25 +195,21 @@ router.get('/creation-js-api', async function(req, res, next) {
                 });
                 productSizeBody = productSizeBody.getBody('utf8')
                 $product = cheerio.load(productSizeBody)
+                const title = ($product('#productTitle').html()).trim()
+                console.log(title)
                 const discountPrice =$product('#apex_desktop .apexPriceToPay').find('.a-offscreen').html() || $('#apex_desktop .priceToPay').find('.a-offscreen').html()
                 const originalPrice =$product('#apex_desktop span[data-a-color = secondary]').find('span[aria-hidden = true]').html()
                 if(sizeFirst) {
-                  console.log(1)
+                  sizeFirst = false
                   //  第一个尺码
-                  const title = ($product('#productTitle').html()).trim()
-                  console.log(2)
                   mainProduct['Handle'] = title
-                  console.log(3)
                   mainProduct['Title'] = title
-                  console.log(4)
                   mainProduct['Variant Grams'] = originalPrice
                   mainProduct['Variant Price'] = discountPrice
-                  console.log(5)
                   mainProduct['Option1 Name'] = 'SIZE'
                   mainProduct['Option1 Value'] = sizeElm.find('option')[i].attribs['data-a-html-content']
                   mainProduct['Variant Image'] = $product('#imgTagWrapperId img')[0].attribs['data-old-hires']
                   mainProduct['originalUrl'] = urlLsit
-                  sizeFirst = false
                   subProductList.push({
                     ...tmpData,
                     ...mainProduct
@@ -227,7 +219,8 @@ router.get('/creation-js-api', async function(req, res, next) {
                   //  其他尺码
                   subProductList.push({
                     ...tmpData,
-                    'Handle': ($product('#productTitle').html()).trim(),
+                    'Handle': title,
+                    'Title': '',
                     'Option1 Value': sizeElm.find('option')[i].attribs['data-a-html-content'],
                     'Variant Grams': originalPrice,
                     'Variant Price': discountPrice
@@ -245,14 +238,18 @@ router.get('/creation-js-api', async function(req, res, next) {
           const discountPrice = $('#apex_desktop .apexPriceToPay').find('.a-offscreen').html() || $('#apex_desktop .priceToPay').find('.a-offscreen').html()
           const originalPrice = $('#apex_desktop span[data-a-color = secondary]').find('span[aria-hidden = true]').html()
           const title = ($('#productTitle').html()).trim()
+          console.log(title)
           mainProduct['Handle'] = title
           mainProduct['Title'] = title
           mainProduct['Variant Price'] = discountPrice
           mainProduct['Variant Grams'] = originalPrice
           mainProduct['Variant Image'] = $('#imgTagWrapperId img')[0].attribs['data-old-hires']
           mainProduct['originalUrl'] = pUrl
-
-          productList.push(Object.assign(tmpData, mainProduct))
+          
+          productList.push({
+            ...tmpData,
+            ...mainProduct
+          })
         }
       }
     })
